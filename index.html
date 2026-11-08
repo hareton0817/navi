@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>モンスト反射角度ガイド｜試作品</title>
+<title>モンスト反射角度ガイド v0.7.2</title>
 <style>
 :root{color-scheme:dark;--bg:#10151d;--panel:#1a2431;--line:#344255;--accent:#61b8ff;--muted:#a9b7c8}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:#eef4fb;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -54,7 +54,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
 </style>
 </head>
 <body>
-<header><h1>モンスト反射角度ガイド <span style="font-size:10px;color:#8ed0ff">v0.7</span></h1></header>
+<header><h1>モンスト反射角度ガイド <span style="font-size:10px;color:#8ed0ff">v0.7.2</span></h1></header>
 <main>
 <section class="panel">
  <div class="toolbar icon-toolbar" role="toolbar" aria-label="画像操作">
@@ -96,8 +96,22 @@ function draw(){
  if(img){ctx.drawImage(img,imageRect.x,imageRect.y,imageRect.w,imageRect.h)}else{ctx.fillStyle='#152333';ctx.fillRect(0,0,cv.width,cv.height);ctx.fillStyle='#c5d5e5';ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText('スクリーンショットをアップロード',450,285);ctx.font='14px sans-serif';ctx.fillText('画像なしでも枠と反射計算を試せます',450,315)}
  // outside dim + playfield border
  ctx.fillStyle='rgba(0,0,0,.24)';ctx.fillRect(0,0,cv.width,box.y);ctx.fillRect(0,box.y+box.h,cv.width,cv.height-box.y-box.h);ctx.fillRect(0,box.y,box.x,box.h);ctx.fillRect(box.x+box.w,box.y,cv.width-box.x-box.w,box.h);
- ctx.strokeStyle='#55e39b';ctx.lineWidth=3;ctx.strokeRect(box.x,box.y,box.w,box.h);
- for(const [x,y] of [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]]){ctx.fillStyle=mode==='wall'?'#55e39b':'rgba(85,227,155,.55)';ctx.fillRect(x-12,y-12,24,24);ctx.strokeStyle='#10251c';ctx.lineWidth=2;ctx.strokeRect(x-12,y-12,24,24)}
+ // 壁枠を半透明で塗り、ドラッグ中も範囲の変化が一目で分かるようにする
+ ctx.fillStyle=mode==='wall'?'rgba(85,227,155,.13)':'rgba(85,227,155,.06)';
+ ctx.fillRect(box.x,box.y,box.w,box.h);
+ ctx.strokeStyle=mode==='wall'?'#7dffb5':'#55e39b';ctx.lineWidth=mode==='wall'?5:3;
+ ctx.strokeRect(box.x,box.y,box.w,box.h);
+ const corners=[[box.x,box.y,'左上'],[box.x+box.w,box.y,'右上'],[box.x,box.y+box.h,'左下'],[box.x+box.w,box.y+box.h,'右下']];
+ for(const [x,y,label] of corners){
+  ctx.beginPath();ctx.arc(x,y,mode==='wall'?17:13,0,Math.PI*2);
+  ctx.fillStyle=mode==='wall'?'#55e39b':'rgba(85,227,155,.55)';ctx.fill();
+  ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.stroke();
+  ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fillStyle='#10251c';ctx.fill();
+ }
+ if(mode==='wall'){
+  ctx.fillStyle='#baffd6';ctx.font='bold 16px sans-serif';ctx.textAlign='left';
+  ctx.fillText(`壁枠 ${Math.round(box.w)} × ${Math.round(box.h)}`,box.x+8,Math.max(20,box.y-12));
+ }
  if(path.length>1){ctx.beginPath();ctx.moveTo(path[0].x,path[0].y);for(let p of path.slice(1))ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ffe16b';ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.stroke();ctx.setLineDash([]);
  path.slice(1,-1).forEach((p,i)=>{ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fillStyle='#ffb84d';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.fillText(String(i+1),p.x+10,p.y-10)})}
  if(start){ctx.beginPath();ctx.arc(start.x,start.y,10,0,Math.PI*2);ctx.fillStyle='#55baff';ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';ctx.fillText('発射点固定',start.x+14,start.y-14)}
@@ -147,7 +161,12 @@ cv.addEventListener('pointerdown',e=>{
  }
 });
 cv.addEventListener('pointermove',e=>{
- if(dragging){let p=coord(e),min=40;if(dragging==='tl'){let rx=box.x+box.w,by=box.y+box.h;box.x=Math.max(0,Math.min(p.x,rx-min));box.y=Math.max(0,Math.min(p.y,by-min));box.w=rx-box.x;box.h=by-box.y}else if(dragging==='tr'){let by=box.y+box.h;box.w=Math.max(min,Math.min(cv.width-box.x,p.x-box.x));box.y=Math.max(0,Math.min(p.y,by-min));box.h=by-box.y}else if(dragging==='bl'){let rx=box.x+box.w;box.x=Math.max(0,Math.min(p.x,rx-min));box.w=rx-box.x;box.h=Math.max(min,Math.min(cv.height-box.y,p.y-box.y))}else if(dragging==='br'){box.w=Math.max(min,Math.min(cv.width-box.x,p.x-box.x));box.h=Math.max(min,Math.min(cv.height-box.y,p.y-box.y))}if(start){start.x=Math.max(box.x,Math.min(box.x+box.w,start.x));start.y=Math.max(box.y,Math.min(box.y+box.h,start.y))}update();return}
+ if(dragging){let p=coord(e),min=40;if(dragging==='tl'){let rx=box.x+box.w,by=box.y+box.h;box.x=Math.max(0,Math.min(p.x,rx-min));box.y=Math.max(0,Math.min(p.y,by-min));box.w=rx-box.x;box.h=by-box.y}else if(dragging==='tr'){let by=box.y+box.h;box.w=Math.max(min,Math.min(cv.width-box.x,p.x-box.x));box.y=Math.max(0,Math.min(p.y,by-min));box.h=by-box.y}else if(dragging==='bl'){let rx=box.x+box.w;box.x=Math.max(0,Math.min(p.x,rx-min));box.w=rx-box.x;box.h=Math.max(min,Math.min(cv.height-box.y,p.y-box.y))}else if(dragging==='br'){box.w=Math.max(min,Math.min(cv.width-box.x,p.x-box.x));box.h=Math.max(min,Math.min(cv.height-box.y,p.y-box.y))}if(start){start.x=Math.max(box.x,Math.min(box.x+box.w,start.x));start.y=Math.max(box.y,Math.min(box.y+box.h,start.y))}
+  // ポインター移動ごとに壁枠と軌道を即時再描画
+  draw();
+  if(start)trace();
+  setStatus(`壁を調整中：幅 ${Math.round(box.w)}px × 高さ ${Math.round(box.h)}px`);
+  return}
  if(movingStart){const p=coord(e);start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};update();return}
  if(gesture&&gesture.id===e.pointerId){const p=coord(e),dx=gesture.origin.x-p.x,dy=gesture.origin.y-p.y;if(Math.hypot(dx,dy)>5){gesture.moved=true;let deg=Math.atan2(-dy,dx)*180/Math.PI;if(deg<0)deg+=360;const snapped=((Math.round(deg/.3)*.3)%360+360)%360;angle.value=snapped.toFixed(1);update();setStatus('角度調整中：'+Number(angle.value).toFixed(1)+'°')}}
 });
