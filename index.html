@@ -52,7 +52,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
 </style>
 </head>
 <body>
-<header><h1>モンスト反射角度ガイド <span style="font-size:10px;color:#8ed0ff">v0.5</span></h1></header>
+<header><h1>モンスト反射角度ガイド <span style="font-size:10px;color:#8ed0ff">v0.6</span></h1></header>
 <main>
 <section class="panel">
  <div class="toolbar icon-toolbar" role="toolbar" aria-label="画像操作">
@@ -138,9 +138,9 @@ cv.addEventListener('pointerup',e=>{if(dragging){dragging=null;return}if(!gestur
 });
 cv.addEventListener('pointercancel',()=>{gesture=null;dragging=null});
 cv.addEventListener('wheel',e=>{if(!start)return;e.preventDefault();changeAngle(e.deltaY>0?-1:1);},{passive:false});
-file.addEventListener('change',e=>{let f=e.target.files[0];if(!f)return;let u=URL.createObjectURL(f),im=new Image();im.onload=()=>{img=im;let w=600,h=Math.round(600*im.height/im.width);cv.width=w;cv.height=h;imageRect={x:0,y:0,w,h};box={x:Math.round(w*.025),y:Math.round(h*.192),w:Math.round(w*.95),h:Math.round(h*.448)};start=null;target=null;path=[];draw();setStatus('画像を読み込みました。固定の壁枠を表示しました。緑の四隅をドラッグして壁の内側に合わせてください。自動認識は行いません。');URL.revokeObjectURL(u)};im.src=u});
+file.addEventListener('change',e=>{let f=e.target.files[0];if(!f)return;let u=URL.createObjectURL(f),im=new Image();im.onload=()=>{img=im;let w=600,h=Math.round(600*im.height/im.width);cv.width=w;cv.height=h;imageRect={x:0,y:0,w,h};box={x:Math.round(w*.025),y:Math.round(h*.192),w:Math.round(w*.95),h:Math.round(h*.488)};start=null;target=null;path=[];draw();setStatus('画像を読み込みました。固定の壁枠を表示しました。緑の四隅をドラッグして壁の内側に合わせてください。自動認識は行いません。');URL.revokeObjectURL(u)};im.src=u});
 document.getElementById('reset').onclick=()=>{start=null;target=null;path=[];gesture=null;setStatus('リセットしました。発射位置を選び直してください。');draw()};
-document.getElementById('fit').onclick=()=>{box=img?{x:Math.round(cv.width*.025),y:Math.round(cv.height*.115),w:Math.round(cv.width*.95),h:Math.round(cv.height*.56)}:{x:45,y:35,w:810,h:530};update();setStatus('壁枠を参考画像の固定プリセットに戻しました。必要なら四隅を手動調整してください。')};
+document.getElementById('fit').onclick=()=>{box=img?{x:Math.round(cv.width*.025),y:Math.round(cv.height*.192),w:Math.round(cv.width*.95),h:Math.round(cv.height*.488)}:{x:45,y:35,w:810,h:530};update();setStatus('壁枠を参考画像の固定プリセットに戻しました。必要なら四隅を手動調整してください。')};
 document.getElementById('minus').onclick=()=>changeAngle(-1);
 document.getElementById('plus').onclick=()=>changeAngle(1);
 angle.addEventListener('input',update);bounces.addEventListener('input',update);
