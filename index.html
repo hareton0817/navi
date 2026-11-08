@@ -12,7 +12,7 @@ h1{font-size:20px;margin:0 0 4px}header p{margin:0;color:var(--muted);font-size:
 main{max-width:1100px;margin:auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
 .canvas-wrap{background:#080d13;border-radius:10px;overflow:hidden;min-height:260px;display:flex;align-items:center;justify-content:center}
-canvas{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;touch-action:manipulation;cursor:crosshair}
+canvas{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 button,.filelabel{border:1px solid #49617b;background:#24364a;color:#fff;border-radius:10px;padding:11px 14px;min-height:44px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 button.primary{background:#176fb4;border-color:#258cdb}button:disabled{opacity:.45;cursor:not-allowed}
@@ -31,7 +31,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
  .canvas-wrap{min-height:180px}
  canvas{max-height:none;width:100%;height:auto}
  .toolbar{gap:7px}
- .toolbar button,.toolbar .filelabel{flex:1 1 calc(50% - 7px);font-size:14px}
+ .toolbar button,.toolbar .filelabel{flex:1 1 calc(50% - 7px);font-size:15px;min-height:50px}
+ button,.filelabel{min-height:50px;padding:12px 14px}
+ .canvas-wrap{border-radius:12px}
+ .status{font-size:14px;min-height:52px}
  .control{margin:13px 0}
  input[type=range]{height:32px}
  .control .toolbar button{flex:1}
@@ -44,7 +47,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
 </style>
 </head>
 <body>
-<header><h1>モンスト反射角度ガイド <span style="font-size:12px;color:#8ed0ff">試作品 v0.1</span></h1><p>画像を読み込み、発射位置と最初の反射点を指定して反射ルートを確認できます。</p></header>
+<header><h1>モンスト反射角度ガイド <span style="font-size:12px;color:#8ed0ff">試作品 v0.2</span></h1><p>画像を読み込み、発射位置と最初の反射点を指定して反射ルートを確認できます。</p></header>
 <main>
 <section class="panel">
  <div class="toolbar">
@@ -53,7 +56,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
   <button id="fit">壁枠を画像全体に戻す</button>
  </div>
  <div class="canvas-wrap"><canvas id="cv" width="900" height="600"></canvas></div>
- <p class="hint" id="hint">①画像を読み込む → ②ステージの壁枠を調整 → ③発射位置をクリック → ④最初の反射点（壁上）をクリック<br><b style="color:#8ed0ff">敵・味方・アイテムはすべて無視し、壁だけで反射する貫通タイプとして計算します。</b></p>
+ <p class="hint" id="hint">①画像を読み込む → ②緑の壁枠を調整 → ③発射位置をタップ → ④最初の反射点をタップ<br><b style="color:#8ed0ff">発射点はリセットするまで固定。設定後は画像上を上下にスワイプして角度を0.3°ずつ調整できます。</b></p>
 </section>
 <aside class="panel controls">
  <h2 style="font-size:16px;margin:0 0 12px">軌道設定</h2>
@@ -61,7 +64,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
  <div class="control"><label for="bounces">反射回数 <span class="value" id="bounceText">3回</span></label><input id="bounces" type="range" min="1" max="10" step="1" value="3"></div>
  <div class="status" id="status">画像を読み込んでください。</div>
  <div style="margin-top:16px"><b style="font-size:14px">使い方</b><div class="steps" style="margin-top:8px">
- <div>1. スクショをアップロード</div><div>2. 緑の枠をドラッグして壁の内側に合わせる</div><div>3. 発射位置をクリック</div><div>4. 壁上の反射させたい位置をクリック</div><div>5. 角度を0.3°刻みで微調整</div></div></div>
+ <div>1. スクショをアップロード</div><div>2. 緑の枠をドラッグして壁の内側に合わせる</div><div>3. 発射位置をタップ（リセットまで固定）</div><div>4. 最初の反射点をタップ</div><div>5. 画像を上下スワイプして角度調整</div></div></div>
  <p class="small">計算ルール：敵・味方・アイテムには当たり判定を設けず、壁に到達したときだけ反射します。現在は四角形の壁を使った幾何シミュレーションです。壁の自動認識は行いません。画像上の外周判定枠を固定の基準として置き、四隅を手動調整して使います。</p>
 </aside>
 </main>
@@ -69,7 +72,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 const file=document.getElementById('file'),angle=document.getElementById('angle'),bounces=document.getElementById('bounces');
 const angleText=document.getElementById('angleText'),bounceText=document.getElementById('bounceText'),status=document.getElementById('status'),hint=document.getElementById('hint');
-let img=null, imageRect={x:0,y:0,w:900,h:600}, box={x:22,y:69,w:856,h:336}, start=null, target=null, dragging=null, path=[];
+let img=null, imageRect={x:0,y:0,w:900,h:600}, box={x:22,y:69,w:856,h:336}, start=null, target=null, dragging=null, path=[], gesture=null;
 function setStatus(t){status.textContent=t}
 function draw(){
  ctx.clearRect(0,0,cv.width,cv.height);
@@ -80,7 +83,7 @@ function draw(){
  for(const [x,y] of [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]]){ctx.fillStyle='#55e39b';ctx.fillRect(x-7,y-7,14,14)}
  if(path.length>1){ctx.beginPath();ctx.moveTo(path[0].x,path[0].y);for(let p of path.slice(1))ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ffe16b';ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.stroke();ctx.setLineDash([]);
  path.slice(1,-1).forEach((p,i)=>{ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fillStyle='#ffb84d';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.fillText(String(i+1),p.x+10,p.y-10)})}
- if(start){ctx.beginPath();ctx.arc(start.x,start.y,10,0,Math.PI*2);ctx.fillStyle='#55baff';ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=2;ctx.stroke()}
+ if(start){ctx.beginPath();ctx.arc(start.x,start.y,10,0,Math.PI*2);ctx.fillStyle='#55baff';ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';ctx.fillText('発射点固定',start.x+14,start.y-14)}
  if(target){ctx.beginPath();ctx.arc(target.x,target.y,8,0,Math.PI*2);ctx.fillStyle='#ffb84d';ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=2;ctx.stroke()}
 }
 function trace(){
@@ -101,22 +104,27 @@ function trace(){
  draw();
 }
 function update(){angleText.textContent=(Number(angle.value)).toFixed(1)+'°';bounceText.textContent=bounces.value+'回';trace()}
+function changeAngle(steps){let v=(Math.round(Number(angle.value)*10/3)+steps)%1200;if(v<0)v+=1200;angle.value=(v*0.3).toFixed(1);update()}
 function nearestWall(p){let ds=[{d:Math.abs(p.x-box.x),x:box.x,y:p.y},{d:Math.abs(p.x-(box.x+box.w)),x:box.x+box.w,y:p.y},{d:Math.abs(p.y-box.y),x:p.x,y:box.y},{d:Math.abs(p.y-(box.y+box.h)),x:p.x,y:box.y+box.h}].sort((a,b)=>a.d-b.d);return {x:Math.max(box.x,Math.min(box.x+box.w,ds[0].x)),y:Math.max(box.y,Math.min(box.y+box.h,ds[0].y))}}
 function coord(e){let r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}}
 function setAngleToTarget(){if(!start||!target)return;let deg=Math.atan2(-(target.y-start.y),target.x-start.x)*180/Math.PI;if(deg<0)deg+=360;let snapped=Math.round(deg/.3)*.3;snapped=((snapped%360)+360)%360;angle.value=snapped.toFixed(1);update();setStatus('反射点に近づく角度を設定しました。0.3°刻みで微調整できます。')}
-cv.addEventListener('pointerdown',e=>{let p=coord(e),corners=[['tl',box.x,box.y],['tr',box.x+box.w,box.y],['bl',box.x,box.y+box.h],['br',box.x+box.w,box.y+box.h]];let c=corners.find(c=>Math.hypot(p.x-c[1],p.y-c[2])<22);if(c){dragging=c[0];cv.setPointerCapture(e.pointerId);return}
- if(!img&&!start){start=p;setStatus('発射位置を設定しました。壁上の反射点をクリックしてください。');draw();return}
- if(!start){start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};setStatus('発射位置を設定しました。次に壁上の反射点をクリックしてください。');draw();return}
- if(!target){target=nearestWall(p);setAngleToTarget();return}
- start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};target=null;path=[];setStatus('発射位置を変更しました。次に反射点をクリックしてください。');draw()
+cv.addEventListener('pointerdown',e=>{let p=coord(e),corners=[['tl',box.x,box.y],['tr',box.x+box.w,box.y],['bl',box.x,box.y+box.h],['br',box.x+box.w,box.y+box.h]];let c=corners.find(c=>Math.hypot(p.x-c[1],p.y-c[2])<26);if(c&&!start){dragging=c[0];cv.setPointerCapture(e.pointerId);return}
+ if(start){gesture={id:e.pointerId,y:e.clientY,x:e.clientX,moved:false};cv.setPointerCapture(e.pointerId);return}
+ start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};setStatus('発射点を固定しました。次に壁上の最初の反射点をタップしてください。発射点はリセットするまで動きません。');draw();
 });
-cv.addEventListener('pointermove',e=>{if(!dragging)return;let p=coord(e),min=40;if(dragging==='tl'){let rx=box.x+box.w,by=box.y+box.h;box.x=Math.min(p.x,rx-min);box.y=Math.min(p.y,by-min);box.w=rx-box.x;box.h=by-box.y}else if(dragging==='tr'){let by=box.y+box.h;box.w=Math.max(min,p.x-box.x);box.y=Math.min(p.y,by-min);box.h=by-box.y}else if(dragging==='bl'){let rx=box.x+box.w;box.x=Math.min(p.x,rx-min);box.w=rx-box.x;box.h=Math.max(min,p.y-box.y)}else if(dragging==='br'){box.w=Math.max(min,p.x-box.x);box.h=Math.max(min,p.y-box.y)}if(start){start.x=Math.max(box.x,Math.min(box.x+box.w,start.x));start.y=Math.max(box.y,Math.min(box.y+box.h,start.y))}update()});
-cv.addEventListener('pointerup',()=>dragging=null);
+cv.addEventListener('pointermove',e=>{if(dragging){let p=coord(e),min=40;if(dragging==='tl'){let rx=box.x+box.w,by=box.y+box.h;box.x=Math.min(p.x,rx-min);box.y=Math.min(p.y,by-min);box.w=rx-box.x;box.h=by-box.y}else if(dragging==='tr'){let by=box.y+box.h;box.w=Math.max(min,p.x-box.x);box.y=Math.min(p.y,by-min);box.h=by-box.y}else if(dragging==='bl'){let rx=box.x+box.w;box.x=Math.min(p.x,rx-min);box.w=rx-box.x;box.h=Math.max(min,p.y-box.y)}else if(dragging==='br'){box.w=Math.max(min,p.x-box.x);box.h=Math.max(min,p.y-box.y)}if(start){start.x=Math.max(box.x,Math.min(box.x+box.w,start.x));start.y=Math.max(box.y,Math.min(box.y+box.h,start.y))}update();return}
+ if(gesture&&gesture.id===e.pointerId&&Math.abs(e.clientY-gesture.y)>8)gesture.moved=true;
+});
+cv.addEventListener('pointerup',e=>{if(dragging){dragging=null;return}if(!gesture||gesture.id!==e.pointerId)return;let dy=gesture.y-e.clientY;let moved=gesture.moved;gesture=null;if(moved){let steps=Math.round(dy/10);if(steps!==0){changeAngle(steps);setStatus('画像スワイプで角度を調整しました（0.3°刻み）。');}return}
+ let p=coord(e);if(!target){target=nearestWall(p);setAngleToTarget();}else{setStatus('発射点は固定中です。画像を上下にスワイプして角度を調整してください。変更する場合は「位置選択をリセット」を押してください。')}
+});
+cv.addEventListener('pointercancel',()=>{gesture=null;dragging=null});
+cv.addEventListener('wheel',e=>{if(!start)return;e.preventDefault();changeAngle(e.deltaY>0?-1:1);},{passive:false});
 file.addEventListener('change',e=>{let f=e.target.files[0];if(!f)return;let u=URL.createObjectURL(f),im=new Image();im.onload=()=>{img=im;let w=600,h=Math.round(600*im.height/im.width);cv.width=w;cv.height=h;imageRect={x:0,y:0,w,h};box={x:Math.round(w*.025),y:Math.round(h*.115),w:Math.round(w*.95),h:Math.round(h*.56)};start=null;target=null;path=[];draw();setStatus('画像を読み込みました。固定の壁枠を表示しました。緑の四隅をドラッグして壁の内側に合わせてください。自動認識は行いません。');URL.revokeObjectURL(u)};im.src=u});
-document.getElementById('reset').onclick=()=>{start=null;target=null;path=[];setStatus('選択をリセットしました。発射位置から選択してください。');draw()};
+document.getElementById('reset').onclick=()=>{start=null;target=null;path=[];gesture=null;setStatus('リセットしました。発射位置を選び直してください。');draw()};
 document.getElementById('fit').onclick=()=>{box=img?{x:Math.round(cv.width*.025),y:Math.round(cv.height*.115),w:Math.round(cv.width*.95),h:Math.round(cv.height*.56)}:{x:45,y:35,w:810,h:530};update();setStatus('壁枠を参考画像の固定プリセットに戻しました。必要なら四隅を手動調整してください。')};
-document.getElementById('minus').onclick=()=>{angle.value=String(Math.max(0,Number(angle.value)-.3).toFixed(1));update()};
-document.getElementById('plus').onclick=()=>{angle.value=String(Math.min(359.7,Number(angle.value)+.3).toFixed(1));update()};
+document.getElementById('minus').onclick=()=>changeAngle(-1);
+document.getElementById('plus').onclick=()=>changeAngle(1);
 angle.addEventListener('input',update);bounces.addEventListener('input',update);
 draw();update();
 </script>
