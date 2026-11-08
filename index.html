@@ -97,7 +97,7 @@ function draw(){
  // outside dim + playfield border
  ctx.fillStyle='rgba(0,0,0,.24)';ctx.fillRect(0,0,cv.width,box.y);ctx.fillRect(0,box.y+box.h,cv.width,cv.height-box.y-box.h);ctx.fillRect(0,box.y,box.x,box.h);ctx.fillRect(box.x+box.w,box.y,cv.width-box.x-box.w,box.h);
  ctx.strokeStyle='#55e39b';ctx.lineWidth=3;ctx.strokeRect(box.x,box.y,box.w,box.h);
- for(const [x,y] of [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]]){ctx.fillStyle=mode==='wall'?'#55e39b':'rgba(85,227,155,.55)';ctx.fillRect(x-7,y-7,14,14)}
+ for(const [x,y] of [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]]){ctx.fillStyle=mode==='wall'?'#55e39b':'rgba(85,227,155,.55)';ctx.fillRect(x-12,y-12,24,24);ctx.strokeStyle='#10251c';ctx.lineWidth=2;ctx.strokeRect(x-12,y-12,24,24)}
  if(path.length>1){ctx.beginPath();ctx.moveTo(path[0].x,path[0].y);for(let p of path.slice(1))ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ffe16b';ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.stroke();ctx.setLineDash([]);
  path.slice(1,-1).forEach((p,i)=>{ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fillStyle='#ffb84d';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.fillText(String(i+1),p.x+10,p.y-10)})}
  if(start){ctx.beginPath();ctx.arc(start.x,start.y,10,0,Math.PI*2);ctx.fillStyle='#55baff';ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';ctx.fillText('発射点固定',start.x+14,start.y-14)}
@@ -126,12 +126,18 @@ function nearestWall(p){let ds=[{d:Math.abs(p.x-box.x),x:box.x,y:p.y},{d:Math.ab
 function coord(e){let r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}}
 function setAngleToTarget(){if(!start||!target)return;let deg=Math.atan2(-(target.y-start.y),target.x-start.x)*180/Math.PI;if(deg<0)deg+=360;let snapped=Math.round(deg/.3)*.3;snapped=((snapped%360)+360)%360;angle.value=snapped.toFixed(1);update();setStatus('反射点に近づく角度を設定しました。0.3°刻みで微調整できます。')}
 cv.addEventListener('pointerdown',e=>{
- const p=coord(e);cv.setPointerCapture(e.pointerId);
+ e.preventDefault();
+ const p=coord(e);
  if(mode==='wall'){
   const corners=[['tl',box.x,box.y],['tr',box.x+box.w,box.y],['bl',box.x,box.y+box.h],['br',box.x+box.w,box.y+box.h]];
-  const c=corners.find(c=>Math.hypot(p.x-c[1],p.y-c[2])<28);
-  if(c){dragging=c[0];return} setStatus('壁調整モード：緑色の四隅をドラッグしてください。');return;
+  // 画面上で約48px以上の操作範囲を確保し、縮小表示でも角を掴みやすくする
+  const rect=cv.getBoundingClientRect();
+  const hitRadius=Math.max(34,48*cv.width/Math.max(1,rect.width));
+  const c=corners.map(c=>({...{name:c[0],x:c[1],y:c[2]},distance:Math.hypot(p.x-c[1],p.y-c[2])})).filter(c=>c.distance<hitRadius).sort((a,b)=>a.distance-b.distance)[0];
+  if(c){dragging=c.name;cv.setPointerCapture(e.pointerId);setStatus('壁の角を調整中：ドラッグして位置を変更できます。');return}
+  setStatus('壁調整モード：緑の四角いハンドル、またはその近くをドラッグしてください。');return;
  }
+ cv.setPointerCapture(e.pointerId);
  if(mode==='launch'){
   start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};target=null;movingStart=true;update();setStatus('発射点を設定しました。ドラッグで位置を調整できます。');return;
  }
