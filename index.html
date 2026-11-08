@@ -17,6 +17,8 @@ canvas{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;t
 button,.filelabel{border:1px solid #49617b;background:#24364a;color:#fff;border-radius:10px;padding:7px 10px;min-height:38px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .icon-toolbar button,.icon-toolbar .filelabel{flex:1 1 0;min-width:0;height:40px;padding:5px;font-size:21px;line-height:1}
 .icon-toolbar button span,.icon-toolbar .filelabel span{display:none}
+.mode-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:8px 0 10px}.mode-toolbar button{min-width:0;padding:8px 5px;font-size:13px}.mode-toolbar button.active{background:#176fb4;border-color:#258cdb;box-shadow:0 0 0 1px #258cdb inset}
+@media(max-width:420px){.mode-toolbar{gap:4px}.mode-toolbar button{font-size:11px;padding:8px 2px}}
 button.primary{background:#176fb4;border-color:#258cdb}button:disabled{opacity:.45;cursor:not-allowed}
 .filelabel input{display:none}.hint{font-size:13px;color:var(--muted);margin:10px 0 0}
 .control{margin:16px 0}.control label{display:flex;justify-content:space-between;gap:10px;font-weight:600;margin-bottom:7px}
@@ -60,8 +62,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
   <button id="reset" title="位置情報をリセット" aria-label="位置情報をリセット">↺<span>リセット</span></button>
   <button id="fit" title="壁枠を初期位置に戻す" aria-label="壁枠を初期位置に戻す">⛶<span>壁枠を戻す</span></button>
  </div>
+ <div class="mode-toolbar" role="group" aria-label="操作モード">
+  <button type="button" data-mode="wall" class="active">壁調整</button>
+  <button type="button" data-mode="launch">発射点調整</button>
+  <button type="button" data-mode="angle">角度スワイプ</button>
+ </div>
  <div class="canvas-wrap"><canvas id="cv" width="900" height="600"></canvas></div>
- <p class="hint" id="hint">①画像を読み込む → ②緑の壁枠を調整 → ③発射位置をタップ → ④最初の反射点をタップ<br><b style="color:#8ed0ff">発射点はリセットするまで固定。発射点から指を引っぱると、引いた方向と反対へ飛ぶ角度になり、軌道がリアルタイムに更新されます。</b></p>
+ <p class="hint" id="hint">壁調整：緑の四隅をドラッグして壁を手動調整します。<br>発射点調整：画面をタップ／ドラッグして発射点を設定・移動します。<br>角度スワイプ：画面をスワイプして角度を調整します。</p>
 </section>
 <aside class="panel controls">
  <h2 style="font-size:16px;margin:0 0 12px">軌道設定</h2>
@@ -69,7 +76,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
  <div class="control"><label for="bounces">反射回数 <span class="value" id="bounceText">3回</span></label><input id="bounces" type="range" min="1" max="10" step="1" value="3"></div>
  <div class="status" id="status">画像を読み込んでください。</div>
  <div style="margin-top:16px"><b style="font-size:14px">使い方</b><div class="steps" style="margin-top:8px">
- <div>1. スクショをアップロード</div><div>2. 緑の枠をドラッグして壁の内側に合わせる</div><div>3. 発射位置をタップ（リセットまで固定）</div><div>4. 最初の反射点をタップ</div><div>5. 発射点から好きな方向へ引っぱって角度調整</div></div></div>
+ <div>1. スクショをアップロード</div><div>2. 「壁調整」で四隅を手動調整</div><div>3. 「発射点調整」で発射位置を設定</div><div>4. 「角度スワイプ」で角度を調整</div><div>5. 画像を切り替えても壁枠は維持</div></div></div>
  <p class="small">計算ルール：敵・味方・アイテムには当たり判定を設けず、壁に到達したときだけ反射します。現在は四角形の壁を使った幾何シミュレーションです。壁の自動認識は行いません。画像上の外周判定枠を固定の基準として置き、四隅を手動調整して使います。</p>
 </aside>
 </main>
@@ -77,7 +84,12 @@ input[type=range]{width:100%;accent-color:var(--accent)}input[type=number]{width
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 const file=document.getElementById('file'),angle=document.getElementById('angle'),bounces=document.getElementById('bounces');
 const angleText=document.getElementById('angleText'),bounceText=document.getElementById('bounceText'),status=document.getElementById('status'),hint=document.getElementById('hint');
-let img=null, imageRect={x:0,y:0,w:900,h:600}, box={x:22,y:69,w:856,h:336}, start=null, target=null, dragging=null, path=[], gesture=null;
+let img=null, imageRect={x:0,y:0,w:900,h:600}, box={x:22,y:69,w:856,h:336}, start=null, target=null, dragging=null, path=[], gesture=null, mode='wall', wallInitialized=false, movingStart=false;
+const modeButtons=[...document.querySelectorAll('[data-mode]')];
+function setMode(next){mode=next;modeButtons.forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));cv.style.cursor=mode==='angle'?'crosshair':mode==='launch'?'move':'nwse-resize';const messages={wall:'壁調整モード：緑の四隅をドラッグして壁の範囲を手動調整してください。',launch:'発射点調整モード：画面をタップまたはドラッグして発射点を設定・移動してください。',angle:'角度調整スワイプモード：画面をスワイプして角度を調整してください。'};setStatus(messages[mode]);draw()}
+modeButtons.forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+function defaultBox(w,h){return{x:Math.round(w*.005),y:Math.round(h*.192),w:Math.round(w*.99),h:Math.round(h*.397)}}
+function normalizedBox(){return{x:box.x/cv.width,y:box.y/cv.height,w:box.w/cv.width,h:box.h/cv.height}}
 function setStatus(t){status.textContent=t}
 function draw(){
  ctx.clearRect(0,0,cv.width,cv.height);
@@ -85,7 +97,7 @@ function draw(){
  // outside dim + playfield border
  ctx.fillStyle='rgba(0,0,0,.24)';ctx.fillRect(0,0,cv.width,box.y);ctx.fillRect(0,box.y+box.h,cv.width,cv.height-box.y-box.h);ctx.fillRect(0,box.y,box.x,box.h);ctx.fillRect(box.x+box.w,box.y,cv.width-box.x-box.w,box.h);
  ctx.strokeStyle='#55e39b';ctx.lineWidth=3;ctx.strokeRect(box.x,box.y,box.w,box.h);
- for(const [x,y] of [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]]){ctx.fillStyle='#55e39b';ctx.fillRect(x-7,y-7,14,14)}
+ for(const [x,y] of [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]]){ctx.fillStyle=mode==='wall'?'#55e39b':'rgba(85,227,155,.55)';ctx.fillRect(x-7,y-7,14,14)}
  if(path.length>1){ctx.beginPath();ctx.moveTo(path[0].x,path[0].y);for(let p of path.slice(1))ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ffe16b';ctx.lineWidth=3;ctx.setLineDash([9,5]);ctx.stroke();ctx.setLineDash([]);
  path.slice(1,-1).forEach((p,i)=>{ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fillStyle='#ffb84d';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.fillText(String(i+1),p.x+10,p.y-10)})}
  if(start){ctx.beginPath();ctx.arc(start.x,start.y,10,0,Math.PI*2);ctx.fillStyle='#55baff';ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';ctx.fillText('発射点固定',start.x+14,start.y-14)}
@@ -113,37 +125,35 @@ function changeAngle(steps){let v=(Math.round(Number(angle.value)*10/3)+steps)%1
 function nearestWall(p){let ds=[{d:Math.abs(p.x-box.x),x:box.x,y:p.y},{d:Math.abs(p.x-(box.x+box.w)),x:box.x+box.w,y:p.y},{d:Math.abs(p.y-box.y),x:p.x,y:box.y},{d:Math.abs(p.y-(box.y+box.h)),x:p.x,y:box.y+box.h}].sort((a,b)=>a.d-b.d);return {x:Math.max(box.x,Math.min(box.x+box.w,ds[0].x)),y:Math.max(box.y,Math.min(box.y+box.h,ds[0].y))}}
 function coord(e){let r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}}
 function setAngleToTarget(){if(!start||!target)return;let deg=Math.atan2(-(target.y-start.y),target.x-start.x)*180/Math.PI;if(deg<0)deg+=360;let snapped=Math.round(deg/.3)*.3;snapped=((snapped%360)+360)%360;angle.value=snapped.toFixed(1);update();setStatus('反射点に近づく角度を設定しました。0.3°刻みで微調整できます。')}
-cv.addEventListener('pointerdown',e=>{let p=coord(e),corners=[['tl',box.x,box.y],['tr',box.x+box.w,box.y],['bl',box.x,box.y+box.h],['br',box.x+box.w,box.y+box.h]];let c=corners.find(c=>Math.hypot(p.x-c[1],p.y-c[2])<26);if(c&&!start){dragging=c[0];cv.setPointerCapture(e.pointerId);return}
- if(start){gesture={id:e.pointerId,origin:coord(e),moved:false};cv.setPointerCapture(e.pointerId);return}
- start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};setStatus('発射点を固定しました。次に壁上の最初の反射点をタップしてください。発射点はリセットするまで動きません。');draw();
-});
-cv.addEventListener('pointermove',e=>{if(dragging){let p=coord(e),min=40;if(dragging==='tl'){let rx=box.x+box.w,by=box.y+box.h;box.x=Math.min(p.x,rx-min);box.y=Math.min(p.y,by-min);box.w=rx-box.x;box.h=by-box.y}else if(dragging==='tr'){let by=box.y+box.h;box.w=Math.max(min,p.x-box.x);box.y=Math.min(p.y,by-min);box.h=by-box.y}else if(dragging==='bl'){let rx=box.x+box.w;box.x=Math.min(p.x,rx-min);box.w=rx-box.x;box.h=Math.max(min,p.y-box.y)}else if(dragging==='br'){box.w=Math.max(min,p.x-box.x);box.h=Math.max(min,p.y-box.y)}if(start){start.x=Math.max(box.x,Math.min(box.x+box.w,start.x));start.y=Math.max(box.y,Math.min(box.y+box.h,start.y))}update();return}
- if(gesture&&gesture.id===e.pointerId){
-  const p=coord(e), ox=gesture.origin.x, oy=gesture.origin.y;
-  const dx=ox-p.x, dy=oy-p.y;
-  if(Math.hypot(dx,dy)>5){
-   gesture.moved=true;
-   // モンスト風：発射点から指を引いた反対方向へ弾く
-   let deg=Math.atan2(-dy,dx)*180/Math.PI;
-   if(deg<0)deg+=360;
-   const snapped=((Math.round(deg/0.3)*0.3)%360+360)%360;
-   angle.value=snapped.toFixed(1);
-   update();
-   setStatus('ひっぱり中：角度 '+Number(angle.value).toFixed(1)+'°');
-  }
+cv.addEventListener('pointerdown',e=>{
+ const p=coord(e);cv.setPointerCapture(e.pointerId);
+ if(mode==='wall'){
+  const corners=[['tl',box.x,box.y],['tr',box.x+box.w,box.y],['bl',box.x,box.y+box.h],['br',box.x+box.w,box.y+box.h]];
+  const c=corners.find(c=>Math.hypot(p.x-c[1],p.y-c[2])<28);
+  if(c){dragging=c[0];return} setStatus('壁調整モード：緑色の四隅をドラッグしてください。');return;
+ }
+ if(mode==='launch'){
+  start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};target=null;movingStart=true;update();setStatus('発射点を設定しました。ドラッグで位置を調整できます。');return;
+ }
+ if(mode==='angle'){
+  if(!start){setStatus('先に「発射点調整モード」で発射点を設定してください。');return}
+  gesture={id:e.pointerId,origin:p,moved:false};return;
  }
 });
-cv.addEventListener('pointerup',e=>{if(dragging){dragging=null;return}if(!gesture||gesture.id!==e.pointerId)return;let moved=gesture.moved;gesture=null;if(moved){setStatus('角度調整完了：'+Number(angle.value).toFixed(1)+'°');return}
- let p=coord(e);if(!target){target=nearestWall(p);setAngleToTarget();}else{setStatus('発射点は固定中です。画像を上下にスワイプして角度を調整してください。変更する場合は「位置選択をリセット」を押してください。')}
+cv.addEventListener('pointermove',e=>{
+ if(dragging){let p=coord(e),min=40;if(dragging==='tl'){let rx=box.x+box.w,by=box.y+box.h;box.x=Math.max(0,Math.min(p.x,rx-min));box.y=Math.max(0,Math.min(p.y,by-min));box.w=rx-box.x;box.h=by-box.y}else if(dragging==='tr'){let by=box.y+box.h;box.w=Math.max(min,Math.min(cv.width-box.x,p.x-box.x));box.y=Math.max(0,Math.min(p.y,by-min));box.h=by-box.y}else if(dragging==='bl'){let rx=box.x+box.w;box.x=Math.max(0,Math.min(p.x,rx-min));box.w=rx-box.x;box.h=Math.max(min,Math.min(cv.height-box.y,p.y-box.y))}else if(dragging==='br'){box.w=Math.max(min,Math.min(cv.width-box.x,p.x-box.x));box.h=Math.max(min,Math.min(cv.height-box.y,p.y-box.y))}if(start){start.x=Math.max(box.x,Math.min(box.x+box.w,start.x));start.y=Math.max(box.y,Math.min(box.y+box.h,start.y))}update();return}
+ if(movingStart){const p=coord(e);start={x:Math.max(box.x,Math.min(box.x+box.w,p.x)),y:Math.max(box.y,Math.min(box.y+box.h,p.y))};update();return}
+ if(gesture&&gesture.id===e.pointerId){const p=coord(e),dx=gesture.origin.x-p.x,dy=gesture.origin.y-p.y;if(Math.hypot(dx,dy)>5){gesture.moved=true;let deg=Math.atan2(-dy,dx)*180/Math.PI;if(deg<0)deg+=360;const snapped=((Math.round(deg/.3)*.3)%360+360)%360;angle.value=snapped.toFixed(1);update();setStatus('角度調整中：'+Number(angle.value).toFixed(1)+'°')}}
 });
-cv.addEventListener('pointercancel',()=>{gesture=null;dragging=null});
+cv.addEventListener('pointerup',e=>{if(dragging){dragging=null;return}if(movingStart){movingStart=false;setStatus('発射点を更新しました。');return}if(gesture&&gesture.id===e.pointerId){const moved=gesture.moved;gesture=null;if(moved)setStatus('角度調整完了：'+Number(angle.value).toFixed(1)+'°')}});
+cv.addEventListener('pointercancel',()=>{gesture=null;dragging=null;movingStart=false});
 cv.addEventListener('wheel',e=>{if(!start)return;e.preventDefault();changeAngle(e.deltaY>0?-1:1);},{passive:false});
-file.addEventListener('change',e=>{let f=e.target.files[0];if(!f)return;let u=URL.createObjectURL(f),im=new Image();im.onload=()=>{img=im;let w=600,h=Math.round(600*im.height/im.width);cv.width=w;cv.height=h;imageRect={x:0,y:0,w,h};box={x:Math.round(w*.005),y:Math.round(h*.192),w:Math.round(w*.99),h:Math.round(h*.397)};start=null;target=null;path=[];draw();setStatus('画像を読み込みました。固定の壁枠を表示しました。緑の四隅をドラッグして壁の内側に合わせてください。自動認識は行いません。');URL.revokeObjectURL(u)};im.src=u});
+file.addEventListener('change',e=>{let f=e.target.files[0];if(!f)return;const saved=wallInitialized?normalizedBox():null;let u=URL.createObjectURL(f),im=new Image();im.onload=()=>{img=im;let w=600,h=Math.round(600*im.height/im.width);cv.width=w;cv.height=h;imageRect={x:0,y:0,w,h};if(saved){box={x:Math.round(saved.x*w),y:Math.round(saved.y*h),w:Math.round(saved.w*w),h:Math.round(saved.h*h)}}else{box=defaultBox(w,h)};wallInitialized=true;start=null;target=null;path=[];gesture=null;draw();setStatus(saved?'画像を切り替えました。前回の壁調整を引き継いでいます。':'画像を読み込みました。壁調整モードで四隅を手動調整してください。');URL.revokeObjectURL(u);file.value=''};im.src=u});
 document.getElementById('reset').onclick=()=>{start=null;target=null;path=[];gesture=null;setStatus('リセットしました。発射位置を選び直してください。');draw()};
-document.getElementById('fit').onclick=()=>{box=img?{x:Math.round(cv.width*.005),y:Math.round(cv.height*.192),w:Math.round(cv.width*.99),h:Math.round(cv.height*.397)}:{x:45,y:35,w:810,h:530};update();setStatus('壁枠を参考画像の固定プリセットに戻しました。必要なら四隅を手動調整してください。')};
+document.getElementById('fit').onclick=()=>{box=img?defaultBox(cv.width,cv.height):{x:45,y:35,w:810,h:530};wallInitialized=!!img;update();setStatus('壁枠を初期位置に戻しました。必要なら壁調整モードで四隅を手動調整してください。')};
 document.getElementById('minus').onclick=()=>changeAngle(-1);
 document.getElementById('plus').onclick=()=>changeAngle(1);
 angle.addEventListener('input',update);bounces.addEventListener('input',update);
-draw();update();
+draw();update();setMode('wall');
 </script>
 </body></html>
